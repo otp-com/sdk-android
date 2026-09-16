@@ -32,7 +32,7 @@ verification, which is why the server key exists and why it stays on your server
 
 ```kotlin
 dependencies {
-    implementation("com.otp:otp-android:0.1.0")
+    implementation("com.otp:sdk-android:0.1.0")
 }
 ```
 
