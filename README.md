@@ -126,8 +126,9 @@ val verification = OtpClient.resumeInterrupted()
 ```
 
 It returns null when there was nothing in flight, which includes a verification that expired while
-they were away and one they closed without answering. In a Compose app, `OtpResumedVerification` is
-the same thing as a composable.
+they were away and one they closed without answering. If their WhatsApp message approved the
+verification while they were away, it returns the proof directly and shows no screen. In a Compose
+app, `OtpResumedVerification` is the same thing as a composable.
 
 ## Your own screen
 
@@ -141,7 +142,8 @@ val pending = session.start("+14155552671")
 pending.codeLength         // how many boxes to draw, and it is not always 6
 pending.expiresAt          // count down from this
 pending.resendAvailableAt  // null means it can never be resent, not "resend now"
-pending.handoffUrl         // WhatsApp only: open this, the code follows
+pending.handoffUrl         // WhatsApp only: open this
+pending.completion         // CODE: the user enters one. INBOUND: their WhatsApp message is the answer
 
 when (val outcome = session.submit(entered)) {
     is CodeSubmission.Verified -> outcome.verification.token
@@ -150,7 +152,17 @@ when (val outcome = session.submit(entered)) {
 }
 ```
 
-Everything a screen needs is on `PendingOtp`, including both deadlines, so no part of this polls.
+When `completion` is `OtpCompletion.INBOUND` there is no code to collect. Open `handoffUrl` and wait
+instead:
+
+```kotlin
+val outcome = session.awaitApproval()   // same shape as submit
+```
+
+Everything a screen needs is on `PendingOtp`, including both deadlines, so a `CODE` verification is
+never polled. An `INBOUND` one is, and `awaitApproval` is that loop: it reads the verification every
+few seconds until it is approved, expired or failed. Which WhatsApp mode your account runs is set on
+our side; read `completion` rather than assuming one.
 
 Two values are worth reading rather than assuming. `codeLength` is your account's setting and it is
 not always six. `resendAvailableAt` being null means this verification can never be resent, which is
@@ -164,6 +176,10 @@ if (inFlight != null) {
     val pending = OtpSession().resume(inFlight.otpId)
 }
 ```
+
+An `INBOUND` verification that was approved while the app was away carries its proof in
+`pending.verification` on that first `resume`. The API issues it once, so take it from there rather
+than calling `resume` again.
 
 ## Device integrity
 
